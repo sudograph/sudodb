@@ -56,7 +56,7 @@ fn find_field_value_stores_for_inputs(
     inputs: &Vec<ReadInput>
 ) -> Result<Vec<FieldValueStore>, SudodbError> {
     // TODO I believe the result in the fold here needs to be mutable for efficiency...not sure, but perhaps
-    let field_value_stores = field_values_store.values().try_fold(vec![], |mut result, field_value_store| {
+    return field_values_store.values().try_fold(vec![], |mut result, field_value_store| {
         let inputs_match: bool = field_value_store_matches_inputs(
             field_value_store,
             field_types_store,
@@ -71,9 +71,7 @@ fn find_field_value_stores_for_inputs(
         else {
             return Ok::<Vec<FieldValueStore>, SudodbError>(result);
         }
-    })?;
-
-    return Ok(field_value_stores);
+    });
 }
 
 fn field_value_store_matches_inputs(
@@ -86,14 +84,16 @@ fn field_value_store_matches_inputs(
             return Ok(false);
         }
 
-        // TODO if these options do not return a result...should that be an error?
         let field_type_option = field_types_store.get(&input.field_name);
         let field_value_option = field_value_store.get(&input.field_name);    
 
         if let (Some(field_type), Some(field_value)) = (field_type_option, field_value_option) {
             match field_type {
                 FieldType::Boolean => {
-                    return Ok(false);
+                    return field_value_matches_input_for_type_boolean(
+                        field_value,
+                        input
+                    );
                 },
                 FieldType::Date => {
                     return field_value_matches_input_for_type_date(
@@ -122,12 +122,84 @@ fn field_value_store_matches_inputs(
             }
         }
         else {
+            // TODO Should I get more specific about what exact information was not found? the field_type or field_value?
             return Err(format!(
                 "Information not found for field {field_name}",
                 field_name = input.field_name
             ));
         }
     });
+}
+
+fn field_value_matches_input_for_type_boolean(
+    field_value: &String,
+    input: &ReadInput
+) -> Result<bool, SudodbError> {
+    let parsed_field_value_result = field_value.parse::<bool>();
+    let parsed_input_value_result = input.field_value.parse::<bool>();
+
+    if let (Ok(parsed_field_value), Ok(parsed_input_value)) = (parsed_field_value_result, parsed_input_value_result) {
+        match input.input_operation {
+            ReadInputOperation::Contains => {
+                return Err(format!(
+                    "{error_prefix}read input operation contains is not implemented for field type boolean",
+                    error_prefix = ERROR_PREFIX
+                ));
+            },
+            ReadInputOperation::EndsWith => {
+                return Err(format!(
+                    "{error_prefix}read input operation ends with is not implemented for field type boolean",
+                    error_prefix = ERROR_PREFIX
+                ));
+            },
+            ReadInputOperation::Equals => {
+                return Ok(parsed_field_value == parsed_input_value);
+            },
+            ReadInputOperation::GreaterThan => {
+                return Err(format!(
+                    "{error_prefix}read input operation in is not implemented for field type boolean",
+                    error_prefix = ERROR_PREFIX
+                ));
+            },
+            ReadInputOperation::GreaterThanOrEqualTo => {
+                return Err(format!(
+                    "{error_prefix}read input operation in is not implemented for field type boolean",
+                    error_prefix = ERROR_PREFIX
+                ));
+            },
+            ReadInputOperation::In => {
+                return Err(format!(
+                    "{error_prefix}read input operation in is not implemented for field type boolean",
+                    error_prefix = ERROR_PREFIX
+                ));
+            },
+            ReadInputOperation::LessThan => {
+                return Err(format!(
+                    "{error_prefix}read input operation in is not implemented for field type boolean",
+                    error_prefix = ERROR_PREFIX
+                ));
+            },
+            ReadInputOperation::LessThanOrEqualTo => {
+                return Err(format!(
+                    "{error_prefix}read input operation in is not implemented for field type boolean",
+                    error_prefix = ERROR_PREFIX
+                ));
+            },
+            ReadInputOperation::StartsWith => {
+                return Err(format!(
+                    "{error_prefix}read input operation starts with is not implemented for field type date",
+                    error_prefix = ERROR_PREFIX
+                ));
+            }
+        };
+    }
+    else {
+        return Err(format!(
+            "{error_prefix}read input operation could not parse this input field value: {field_value}",
+            error_prefix = ERROR_PREFIX,
+            field_value = input.field_value
+        ));
+    }
 }
 
 fn field_value_matches_input_for_type_date(
