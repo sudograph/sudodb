@@ -7,8 +7,10 @@
 
 use std::collections::BTreeMap;
 mod read;
+mod create;
 
 pub use read::read;
+pub use create::create;
 
 pub type ObjectTypeStore = BTreeMap<ObjectTypeName, ObjectType>;
 
@@ -19,22 +21,23 @@ type PrimaryKey = String;
 
 pub struct ObjectType {
     field_values_store: FieldValuesStore,
-    // field_types: FieldTypeStore,
+    field_types_store: FieldTypesStore,
     // field_indexes: FieldIndexStore
     // TODO the indexes will go here
 }
 
 type FieldValuesStore = BTreeMap<PrimaryKey, FieldValueStore>;
 type FieldValueStore = BTreeMap<FieldName, FieldValue>;
+pub type FieldTypesStore = BTreeMap<FieldName, FieldType>;
 
-// enum FieldType {
-//     String,
-//     Number,
-//     Boolean,
-//     Date
-// }
+pub enum FieldType {
+    Boolean,
+    Date,
+    Int, // TODO do we need to split this into sizes? What should the default be?
+    Float, // TODO do we need to split this into sizes? What should the default be?
+    String
+}
 
-// type FieldTypeStore = BTreeMap<FieldName, FieldType>;
 // type FieldIndexStore = BTreeMap<FieldValue, PrimaryKey>;
 
 pub enum ReadInputType {
@@ -43,15 +46,15 @@ pub enum ReadInputType {
 }
 
 pub enum ReadInputOperation {
-    Equals,
     Contains,
-    In,
-    StartsWith,
     EndsWith,
+    Equals,
     GreaterThan,
     GreaterThanOrEqualTo,
+    In, // TODO this is just not implented for strings right now
     LessThan,
-    LessThanOrEqualTo
+    LessThanOrEqualTo,
+    StartsWith
 }
 
 pub struct ReadInput {
@@ -67,39 +70,36 @@ pub struct FieldInput {
     pub field_value: String // TODO this needs to be more generic somehow
 }
 
-pub fn init_object_type(
-    object_type_store: &mut ObjectTypeStore,
-    object_type_name: &str
-) {
-    println!("initObject");
-
-    object_type_store.insert(String::from(object_type_name), ObjectType {
-        field_values_store: BTreeMap::new()
-    });
+pub struct FieldTypeInput {
+    pub field_name: String,
+    pub field_type: FieldType
 }
 
-pub fn create(
+pub type SudodbError = String;
+
+pub fn init_object_type(
     object_type_store: &mut ObjectTypeStore,
     object_type_name: &str,
-    id: &str,
-    inputs: Vec<FieldInput>
-) -> Vec<String> {
-    let object_type_result = object_type_store.get_mut(object_type_name);
+    field_type_inputs: Vec<FieldTypeInput>
+) -> Result<(), SudodbError> {
+    let mut field_types_store = BTreeMap::new();
 
-    if let Some(object_type) = object_type_result {
-        let mut field_values_map: FieldValueStore = BTreeMap::new();
+    for field_type_input in field_type_inputs {
+        field_types_store.insert(
+            field_type_input.field_name,
+            field_type_input.field_type
+        );
+    }
 
-        for input in inputs {
-            field_values_map.insert(input.field_name, input.field_value);
+    object_type_store.insert(
+        String::from(object_type_name),
+        ObjectType {
+            field_values_store: BTreeMap::new(),
+            field_types_store
         }
+    );
 
-        object_type.field_values_store.insert(String::from(id), field_values_map);
-
-        return vec![]; // TODO this should return a string of the result
-    }
-    else {
-        return vec![];
-    }
+    return Ok(());
 }
 
 pub fn update(
@@ -107,7 +107,7 @@ pub fn update(
     object_type_name: &str,
     id: &str,
     inputs: Vec<FieldInput>
-) -> Vec<String> {
+) -> Result<Vec<String>, SudodbError> {
     let object_type_result = object_type_store.get_mut(object_type_name);
 
     if let Some(object_type) = object_type_result {
@@ -121,14 +121,21 @@ pub fn update(
                 );
             }
         
-            return vec![]; // TODO this should return a string of the result
+            return Ok(vec![]); // TODO this should return a string of the result
         }
         else {
-            return vec![];
+            return Err(format!(
+                "record {id} not found for {object_type_name} object type",
+                id = id,
+                object_type_name = object_type_name
+            ));
         }
     }
     else {
-        return vec![];
+        return Err(format!(
+            "{object_type_name} not found in database",
+            object_type_name = object_type_name
+        ));
     }
 }
 
@@ -136,15 +143,18 @@ pub fn delete(
     object_type_store: &mut ObjectTypeStore,
     object_type_name: &str,
     id: &str
-) -> Vec<String> {
+) -> Result<Vec<String>, SudodbError> {
     let object_type_result = object_type_store.get_mut(object_type_name);
 
     if let Some(object_type) = object_type_result {
         object_type.field_values_store.remove(id);
 
-        return vec![]; // TODO this should return a string of the result
+        return Ok(vec![]); // TODO this should return a string of the result
     }
     else {
-        return vec![];
+        return Err(format!(
+            "{object_type_name} not found in database",
+            object_type_name = object_type_name
+        ));
     }
 }

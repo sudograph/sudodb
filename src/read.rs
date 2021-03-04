@@ -2,7 +2,8 @@ use crate::{
     ObjectTypeStore,
     ReadInput,
     FieldValuesStore,
-    FieldValueStore
+    FieldValueStore,
+    ReadInputOperation
 };
 
 // TODO figure out string interpolation better to clean this function up
@@ -56,13 +57,44 @@ fn find_field_value_stores_for_inputs(
     return field_value_stores;
 }
 
+// TODO we still need to implement relations and operations based on type...
+// TODO we will probably want to match first on the type of the input, then have a function to implement
+// TODO all operations for each type
 fn field_value_store_matches_inputs(
     field_value_store: &FieldValueStore,
     inputs: &Vec<ReadInput>
 ) -> bool {
     return inputs.iter().all(|input| {
         if let Some(field_value) = field_value_store.get(&input.field_name) {
-            return field_value == &input.field_value;
+            match input.input_operation {
+                ReadInputOperation::Contains => {
+                    return field_value.contains(&input.field_value);
+                },
+                ReadInputOperation::EndsWith => {
+                    return field_value.ends_with(&input.field_value);
+                },
+                ReadInputOperation::Equals => {
+                    return field_value == &input.field_value;
+                },
+                ReadInputOperation::GreaterThan => {
+                    return field_value > &input.field_value;
+                },
+                ReadInputOperation::GreaterThanOrEqualTo => {
+                    return field_value >= &input.field_value;
+                },
+                ReadInputOperation::In => {
+                    return false; // TODO this is just not implented for strings right now
+                },
+                ReadInputOperation::LessThan => {
+                    return field_value < &input.field_value;
+                },
+                ReadInputOperation::LessThanOrEqualTo => {
+                    return field_value <= &input.field_value;
+                },
+                ReadInputOperation::StartsWith => {
+                    return field_value.starts_with(&input.field_value);
+                }
+            };
         }
         else {
             return false;
