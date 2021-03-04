@@ -33,8 +33,8 @@ pub type FieldTypesStore = BTreeMap<FieldName, FieldType>;
 pub enum FieldType {
     Boolean,
     Date,
-    Int, // TODO do we need to split this into sizes? What should the default be?
     Float, // TODO do we need to split this into sizes? What should the default be?
+    Int, // TODO do we need to split this into sizes? What should the default be?
     String
 }
 
@@ -55,6 +55,7 @@ pub enum ReadInputOperation {
     LessThan,
     LessThanOrEqualTo,
     StartsWith
+    // TODO we have not implemented or yet, and we have not done arbitrarily nested ands and ors
 }
 
 pub struct ReadInput {

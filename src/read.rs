@@ -8,6 +8,10 @@ use crate::{
     FieldType,
     SudodbError
 };
+use chrono::prelude::{
+    DateTime,
+    Utc
+};
 
 const ERROR_PREFIX: &str = "Sudodb::read::error - ";
 
@@ -92,16 +96,22 @@ fn field_value_store_matches_inputs(
                     return Ok(false);
                 },
                 FieldType::Date => {
-                    return Ok(false);
+                    return field_value_matches_input_for_type_date(
+                        field_value,
+                        input
+                    );
+                },
+                FieldType::Float => {
+                    return field_value_matches_input_for_type_float(
+                        field_value,
+                        input
+                    );
                 },
                 FieldType::Int => {
                     return field_value_matches_input_for_type_int(
                         field_value,
                         input
                     );
-                },
-                FieldType::Float => {
-                    return Ok(false);
                 },
                 FieldType::String => {
                     return field_value_matches_input_for_type_string(
@@ -120,6 +130,126 @@ fn field_value_store_matches_inputs(
     });
 }
 
+fn field_value_matches_input_for_type_date(
+    field_value: &String,
+    input: &ReadInput
+) -> Result<bool, SudodbError> {
+    let parsed_field_value_result = field_value.parse::<DateTime<Utc>>();
+    let parsed_input_value_result = input.field_value.parse::<DateTime<Utc>>();
+
+    if let (Ok(parsed_field_value), Ok(parsed_input_value)) = (parsed_field_value_result, parsed_input_value_result) {
+        match input.input_operation {
+            ReadInputOperation::Contains => {
+                return Err(format!(
+                    "{error_prefix}read input operation contains is not implemented for field type date",
+                    error_prefix = ERROR_PREFIX
+                ));
+            },
+            ReadInputOperation::EndsWith => {
+                return Err(format!(
+                    "{error_prefix}read input operation ends with is not implemented for field type date",
+                    error_prefix = ERROR_PREFIX
+                ));
+            },
+            ReadInputOperation::Equals => {
+                return Ok(parsed_field_value == parsed_input_value);
+            },
+            ReadInputOperation::GreaterThan => {
+                return Ok(parsed_field_value > parsed_input_value);
+            },
+            ReadInputOperation::GreaterThanOrEqualTo => {
+                return Ok(parsed_field_value >= parsed_input_value);
+            },
+            ReadInputOperation::In => {
+                return Err(format!(
+                    "{error_prefix}read input operation in is not implemented for field type date",
+                    error_prefix = ERROR_PREFIX
+                ));
+            },
+            ReadInputOperation::LessThan => {
+                return Ok(parsed_field_value < parsed_input_value);
+            },
+            ReadInputOperation::LessThanOrEqualTo => {
+                return Ok(parsed_field_value <= parsed_input_value);
+            },
+            ReadInputOperation::StartsWith => {
+                return Err(format!(
+                    "{error_prefix}read input operation starts with is not implemented for field type date",
+                    error_prefix = ERROR_PREFIX
+                ));
+            }
+        };
+    }
+    else {
+        return Err(format!(
+            "{error_prefix}read input operation could not parse this input field value: {field_value}",
+            error_prefix = ERROR_PREFIX,
+            field_value = input.field_value
+        ));
+    }
+}
+
+// TODO all ints are parsed to f32...is that correct?
+fn field_value_matches_input_for_type_float(
+    field_value: &String,
+    input: &ReadInput
+) -> Result<bool, SudodbError> {
+    let parsed_field_value_result = field_value.parse::<f32>();
+    let parsed_input_value_result = input.field_value.parse::<f32>();
+
+    if let (Ok(parsed_field_value), Ok(parsed_input_value)) = (parsed_field_value_result, parsed_input_value_result) {
+        match input.input_operation {
+            ReadInputOperation::Contains => {
+                return Err(format!(
+                    "{error_prefix}read input operation contains is not implemented for field type float",
+                    error_prefix = ERROR_PREFIX
+                ));
+            },
+            ReadInputOperation::EndsWith => {
+                return Err(format!(
+                    "{error_prefix}read input operation ends with is not implemented for field type float",
+                    error_prefix = ERROR_PREFIX
+                ));
+            },
+            ReadInputOperation::Equals => {
+                return Ok(parsed_field_value == parsed_input_value);
+            },
+            ReadInputOperation::GreaterThan => {
+                return Ok(parsed_field_value > parsed_input_value);
+            },
+            ReadInputOperation::GreaterThanOrEqualTo => {
+                return Ok(parsed_field_value >= parsed_input_value);
+            },
+            ReadInputOperation::In => {
+                return Err(format!(
+                    "{error_prefix}read input operation in is not implemented for field type float",
+                    error_prefix = ERROR_PREFIX
+                ));
+            },
+            ReadInputOperation::LessThan => {
+                return Ok(parsed_field_value < parsed_input_value);
+            },
+            ReadInputOperation::LessThanOrEqualTo => {
+                return Ok(parsed_field_value <= parsed_input_value);
+            },
+            ReadInputOperation::StartsWith => {
+                return Err(format!(
+                    "{error_prefix}read input operation starts with is not implemented for field type float",
+                    error_prefix = ERROR_PREFIX
+                ));
+            }
+        };
+    }
+    else {
+        return Err(format!(
+            "{error_prefix}read input operation could not parse this input field value: {field_value}",
+            error_prefix = ERROR_PREFIX,
+            field_value = input.field_value
+        ));
+    }
+}
+
+// TODO all ints are parsed to i32...is that correct?
 fn field_value_matches_input_for_type_int(
     field_value: &String,
     input: &ReadInput
@@ -171,7 +301,11 @@ fn field_value_matches_input_for_type_int(
         };
     }
     else {
-        return Err(format!("Error parsing input")); // TODO better error
+        return Err(format!(
+            "{error_prefix}read input operation could not parse this input field value: {field_value}",
+            error_prefix = ERROR_PREFIX,
+            field_value = input.field_value
+        ));
     }
 }
 
