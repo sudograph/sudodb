@@ -34,7 +34,7 @@ pub fn create(
     }
     else {
         return Err(format!(
-            "{object_type_name} not found in database",
+            "Object type {object_type_name} not found in database",
             object_type_name = object_type_name
         ));
     }

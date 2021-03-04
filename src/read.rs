@@ -3,103 +3,214 @@ use crate::{
     ReadInput,
     FieldValuesStore,
     FieldValueStore,
-    ReadInputOperation
+    ReadInputOperation,
+    FieldTypesStore,
+    FieldType,
+    SudodbError
 };
 
-// TODO figure out string interpolation better to clean this function up
+const ERROR_PREFIX: &str = "Sudodb::read::error - ";
+
+// TODO prefix all errors with Sudodb::...or something like that
+// TODO let's try to make this the simplest experience ever
+// TODO consider Motoko integration...could we export this library such that Motoko could import it and use it?
+// TODO I think the hardest part will be sending data structures back and forth
 // TODO this is where all of the complexity will lie, or much of at at least
 // TODO we need to figure out how to enable amazing filtering capabilities
 pub fn read(
     object_type_store: &ObjectTypeStore,
     object_type_name: &str,
     inputs: Vec<ReadInput>
-) -> Vec<String> { // TODO I think I want this to return a list of JSON strings...GraphQL can handle type checking the actual values I hope
+) -> Result<Vec<String>, SudodbError> { // TODO I think I want this to return a list of JSON strings...GraphQL can handle type checking the actual values I hope
     let object_type_result = object_type_store.get(object_type_name);
 
     if let Some(object_type) = object_type_result {
         let field_value_stores = find_field_value_stores_for_inputs(
             &object_type.field_values_store,
+            &object_type.field_types_store,
             &inputs
-        );
+        )?;
 
         let field_value_store_strings = field_value_stores.iter().map(|field_value_store| {
             return convert_field_value_store_to_json_string(field_value_store);
         }).collect();
     
-        return field_value_store_strings;
+        return Ok(field_value_store_strings);
     }
     else {
-        return vec![];
+        return Err(format!(
+            "{error_prefix}Object type {object_type_name} not found in database",
+            error_prefix = ERROR_PREFIX,
+            object_type_name = object_type_name
+        ));
     }
 }
 
-// TODO I believe the result in the fold here needs to be mutable for efficiency...not sure, but perhaps
 fn find_field_value_stores_for_inputs(
     field_values_store: &FieldValuesStore,
+    field_types_store: &FieldTypesStore,
     inputs: &Vec<ReadInput>
-) -> Vec<FieldValueStore> {
-    let field_value_stores = field_values_store.values().fold(vec![], |mut result, field_value_store| {
-        let inputs_match = field_value_store_matches_inputs(
-            &field_value_store,
+) -> Result<Vec<FieldValueStore>, SudodbError> {
+    // TODO I believe the result in the fold here needs to be mutable for efficiency...not sure, but perhaps
+    let field_value_stores = field_values_store.values().try_fold(vec![], |mut result, field_value_store| {
+        let inputs_match: bool = field_value_store_matches_inputs(
+            field_value_store,
+            field_types_store,
             &inputs
-        );
+        )?;
 
         if inputs_match == true {
             result.push(field_value_store.clone());
 
-            return result;
+            return Ok::<Vec<FieldValueStore>, SudodbError>(result);
         }
         else {
-            return result;
+            return Ok::<Vec<FieldValueStore>, SudodbError>(result);
         }
-    });
+    })?;
 
-    return field_value_stores;
+    return Ok(field_value_stores);
 }
 
-// TODO we still need to implement relations and operations based on type...
-// TODO we will probably want to match first on the type of the input, then have a function to implement
-// TODO all operations for each type
 fn field_value_store_matches_inputs(
     field_value_store: &FieldValueStore,
+    field_types_store: &FieldTypesStore,
     inputs: &Vec<ReadInput>
-) -> bool {
-    return inputs.iter().all(|input| {
-        if let Some(field_value) = field_value_store.get(&input.field_name) {
-            match input.input_operation {
-                ReadInputOperation::Contains => {
-                    return field_value.contains(&input.field_value);
+) -> Result<bool, SudodbError> {
+    return inputs.iter().try_fold(true, |result, input| {
+        if result == false {
+            return Ok(false);
+        }
+
+        // TODO if these options do not return a result...should that be an error?
+        let field_type_option = field_types_store.get(&input.field_name);
+        let field_value_option = field_value_store.get(&input.field_name);    
+
+        if let (Some(field_type), Some(field_value)) = (field_type_option, field_value_option) {
+            match field_type {
+                FieldType::Boolean => {
+                    return Ok(false);
                 },
-                ReadInputOperation::EndsWith => {
-                    return field_value.ends_with(&input.field_value);
+                FieldType::Date => {
+                    return Ok(false);
                 },
-                ReadInputOperation::Equals => {
-                    return field_value == &input.field_value;
+                FieldType::Int => {
+                    return field_value_matches_input_for_type_int(
+                        field_value,
+                        input
+                    );
                 },
-                ReadInputOperation::GreaterThan => {
-                    return field_value > &input.field_value;
+                FieldType::Float => {
+                    return Ok(false);
                 },
-                ReadInputOperation::GreaterThanOrEqualTo => {
-                    return field_value >= &input.field_value;
-                },
-                ReadInputOperation::In => {
-                    return false; // TODO this is just not implented for strings right now
-                },
-                ReadInputOperation::LessThan => {
-                    return field_value < &input.field_value;
-                },
-                ReadInputOperation::LessThanOrEqualTo => {
-                    return field_value <= &input.field_value;
-                },
-                ReadInputOperation::StartsWith => {
-                    return field_value.starts_with(&input.field_value);
+                FieldType::String => {
+                    return field_value_matches_input_for_type_string(
+                        field_value,
+                        input
+                    );
                 }
-            };
+            }
         }
         else {
-            return false;
+            return Err(format!(
+                "Information not found for field {field_name}",
+                field_name = input.field_name
+            ));
         }
     });
+}
+
+fn field_value_matches_input_for_type_int(
+    field_value: &String,
+    input: &ReadInput
+) -> Result<bool, SudodbError> {
+    let parsed_field_value_result = field_value.parse::<i32>();
+    let parsed_input_value_result = input.field_value.parse::<i32>();
+
+    if let (Ok(parsed_field_value), Ok(parsed_input_value)) = (parsed_field_value_result, parsed_input_value_result) {
+        match input.input_operation {
+            ReadInputOperation::Contains => {
+                return Err(format!(
+                    "{error_prefix}read input operation contains is not implemented for field type int",
+                    error_prefix = ERROR_PREFIX
+                ));
+            },
+            ReadInputOperation::EndsWith => {
+                return Err(format!(
+                    "{error_prefix}read input operation ends with is not implemented for field type int",
+                    error_prefix = ERROR_PREFIX
+                ));
+            },
+            ReadInputOperation::Equals => {
+                return Ok(parsed_field_value == parsed_input_value);
+            },
+            ReadInputOperation::GreaterThan => {
+                return Ok(parsed_field_value > parsed_input_value);
+            },
+            ReadInputOperation::GreaterThanOrEqualTo => {
+                return Ok(parsed_field_value >= parsed_input_value);
+            },
+            ReadInputOperation::In => {
+                return Err(format!(
+                    "{error_prefix}read input operation in is not implemented for field type int",
+                    error_prefix = ERROR_PREFIX
+                ));
+            },
+            ReadInputOperation::LessThan => {
+                return Ok(parsed_field_value < parsed_input_value);
+            },
+            ReadInputOperation::LessThanOrEqualTo => {
+                return Ok(parsed_field_value <= parsed_input_value);
+            },
+            ReadInputOperation::StartsWith => {
+                return Err(format!(
+                    "{error_prefix}read input operation starts with is not implemented for field type int",
+                    error_prefix = ERROR_PREFIX
+                ));
+            }
+        };
+    }
+    else {
+        return Err(format!("Error parsing input")); // TODO better error
+    }
+}
+
+fn field_value_matches_input_for_type_string(
+    field_value: &String,
+    input: &ReadInput
+) -> Result<bool, SudodbError> {
+    match input.input_operation {
+        ReadInputOperation::Contains => {
+            return Ok(field_value.contains(&input.field_value));
+        },
+        ReadInputOperation::EndsWith => {
+            return Ok(field_value.ends_with(&input.field_value));
+        },
+        ReadInputOperation::Equals => {
+            return Ok(field_value == &input.field_value);
+        },
+        ReadInputOperation::GreaterThan => {
+            return Ok(field_value > &input.field_value);
+        },
+        ReadInputOperation::GreaterThanOrEqualTo => {
+            return Ok(field_value >= &input.field_value);
+        },
+        ReadInputOperation::In => {
+            return Err(format!(
+                "{error_prefix}read input operation in is not implemented for field type string",
+                error_prefix = ERROR_PREFIX
+            ));
+        },
+        ReadInputOperation::LessThan => {
+            return Ok(field_value < &input.field_value);
+        },
+        ReadInputOperation::LessThanOrEqualTo => {
+            return Ok(field_value <= &input.field_value);
+        },
+        ReadInputOperation::StartsWith => {
+            return Ok(field_value.starts_with(&input.field_value));
+        }
+    };
 }
 
 // TODO this only works for string values right now, and only scalar values as well
