@@ -6,7 +6,8 @@ use crate::{
     ReadInputOperation,
     FieldTypesStore,
     FieldType,
-    SudodbError
+    SudodbError,
+    FieldValue
 };
 use chrono::prelude::{
     DateTime,
@@ -36,7 +37,10 @@ pub fn read(
         )?;
 
         let field_value_store_strings = field_value_stores.iter().map(|field_value_store| {
-            return convert_field_value_store_to_json_string(field_value_store);
+            return convert_field_value_store_to_json_string(
+                object_type_store,
+                field_value_store
+            );
         }).collect();
     
         return Ok(field_value_store_strings);
@@ -56,7 +60,7 @@ fn find_field_value_stores_for_inputs(
     inputs: &Vec<ReadInput>
 ) -> Result<Vec<FieldValueStore>, SudodbError> {
     // TODO I believe the result in the fold here needs to be mutable for efficiency...not sure, but perhaps
-    return field_values_store.values().try_fold(vec![], |mut result, field_value_store| {
+    let temp: Result<Vec<FieldValueStore>, SudodbError> = field_values_store.values().try_fold(vec![], |mut result, field_value_store| {
         let inputs_match: bool = field_value_store_matches_inputs(
             field_value_store,
             field_types_store,
@@ -72,6 +76,8 @@ fn find_field_value_stores_for_inputs(
             return Ok::<Vec<FieldValueStore>, SudodbError>(result);
         }
     });
+
+    return temp;
 }
 
 fn field_value_store_matches_inputs(
@@ -113,6 +119,9 @@ fn field_value_store_matches_inputs(
                         input
                     );
                 },
+                FieldType::Relation(object_type_name) => {
+                    return Ok(false);
+                }
                 FieldType::String => {
                     return field_value_matches_input_for_type_string(
                         field_value,
@@ -132,304 +141,396 @@ fn field_value_store_matches_inputs(
 }
 
 fn field_value_matches_input_for_type_boolean(
-    field_value: &String,
+    field_value: &FieldValue,
     input: &ReadInput
 ) -> Result<bool, SudodbError> {
-    let parsed_field_value_result = field_value.parse::<bool>();
-    let parsed_input_value_result = input.field_value.parse::<bool>();
-
-    if let (Ok(parsed_field_value), Ok(parsed_input_value)) = (parsed_field_value_result, parsed_input_value_result) {
-        match input.input_operation {
-            ReadInputOperation::Contains => {
+    // TODO it would be nice to get rid of this match, since field_value should always be a &FieldValue::Scalar here, but it seems a variant cannot be a type
+    // TODO apparently there are some hacks with structs to enable this
+    match field_value {
+        FieldValue::Scalar(field_value_scalar) => {
+            let parsed_field_value_result = field_value_scalar.parse::<bool>();
+            let parsed_input_value_result = input.field_value.parse::<bool>();
+        
+            if let (Ok(parsed_field_value), Ok(parsed_input_value)) = (parsed_field_value_result, parsed_input_value_result) {
+                match input.input_operation {
+                    ReadInputOperation::Contains => {
+                        return Err(format!(
+                            "{error_prefix}read input operation contains is not implemented for field type boolean",
+                            error_prefix = ERROR_PREFIX
+                        ));
+                    },
+                    ReadInputOperation::EndsWith => {
+                        return Err(format!(
+                            "{error_prefix}read input operation ends with is not implemented for field type boolean",
+                            error_prefix = ERROR_PREFIX
+                        ));
+                    },
+                    ReadInputOperation::Equals => {
+                        return Ok(parsed_field_value == parsed_input_value);
+                    },
+                    ReadInputOperation::GreaterThan => {
+                        return Err(format!(
+                            "{error_prefix}read input operation in is not implemented for field type boolean",
+                            error_prefix = ERROR_PREFIX
+                        ));
+                    },
+                    ReadInputOperation::GreaterThanOrEqualTo => {
+                        return Err(format!(
+                            "{error_prefix}read input operation in is not implemented for field type boolean",
+                            error_prefix = ERROR_PREFIX
+                        ));
+                    },
+                    ReadInputOperation::In => {
+                        return Err(format!(
+                            "{error_prefix}read input operation in is not implemented for field type boolean",
+                            error_prefix = ERROR_PREFIX
+                        ));
+                    },
+                    ReadInputOperation::LessThan => {
+                        return Err(format!(
+                            "{error_prefix}read input operation in is not implemented for field type boolean",
+                            error_prefix = ERROR_PREFIX
+                        ));
+                    },
+                    ReadInputOperation::LessThanOrEqualTo => {
+                        return Err(format!(
+                            "{error_prefix}read input operation in is not implemented for field type boolean",
+                            error_prefix = ERROR_PREFIX
+                        ));
+                    },
+                    ReadInputOperation::StartsWith => {
+                        return Err(format!(
+                            "{error_prefix}read input operation starts with is not implemented for field type date",
+                            error_prefix = ERROR_PREFIX
+                        ));
+                    }
+                };
+            }
+            else {
                 return Err(format!(
-                    "{error_prefix}read input operation contains is not implemented for field type boolean",
-                    error_prefix = ERROR_PREFIX
-                ));
-            },
-            ReadInputOperation::EndsWith => {
-                return Err(format!(
-                    "{error_prefix}read input operation ends with is not implemented for field type boolean",
-                    error_prefix = ERROR_PREFIX
-                ));
-            },
-            ReadInputOperation::Equals => {
-                return Ok(parsed_field_value == parsed_input_value);
-            },
-            ReadInputOperation::GreaterThan => {
-                return Err(format!(
-                    "{error_prefix}read input operation in is not implemented for field type boolean",
-                    error_prefix = ERROR_PREFIX
-                ));
-            },
-            ReadInputOperation::GreaterThanOrEqualTo => {
-                return Err(format!(
-                    "{error_prefix}read input operation in is not implemented for field type boolean",
-                    error_prefix = ERROR_PREFIX
-                ));
-            },
-            ReadInputOperation::In => {
-                return Err(format!(
-                    "{error_prefix}read input operation in is not implemented for field type boolean",
-                    error_prefix = ERROR_PREFIX
-                ));
-            },
-            ReadInputOperation::LessThan => {
-                return Err(format!(
-                    "{error_prefix}read input operation in is not implemented for field type boolean",
-                    error_prefix = ERROR_PREFIX
-                ));
-            },
-            ReadInputOperation::LessThanOrEqualTo => {
-                return Err(format!(
-                    "{error_prefix}read input operation in is not implemented for field type boolean",
-                    error_prefix = ERROR_PREFIX
-                ));
-            },
-            ReadInputOperation::StartsWith => {
-                return Err(format!(
-                    "{error_prefix}read input operation starts with is not implemented for field type date",
-                    error_prefix = ERROR_PREFIX
+                    "{error_prefix}read input operation could not parse this input field value: {field_value}",
+                    error_prefix = ERROR_PREFIX,
+                    field_value = input.field_value
                 ));
             }
-        };
-    }
-    else {
-        return Err(format!(
-            "{error_prefix}read input operation could not parse this input field value: {field_value}",
-            error_prefix = ERROR_PREFIX,
-            field_value = input.field_value
-        ));
+        },
+        FieldValue::Relation(field_value_relation) => {
+            return Ok(false); // TODO relation filtering not yet implemented
+        }
     }
 }
 
 fn field_value_matches_input_for_type_date(
-    field_value: &String,
+    field_value: &FieldValue,
     input: &ReadInput
 ) -> Result<bool, SudodbError> {
-    let parsed_field_value_result = field_value.parse::<DateTime<Utc>>();
-    let parsed_input_value_result = input.field_value.parse::<DateTime<Utc>>();
-
-    if let (Ok(parsed_field_value), Ok(parsed_input_value)) = (parsed_field_value_result, parsed_input_value_result) {
-        match input.input_operation {
-            ReadInputOperation::Contains => {
+    match field_value {
+        FieldValue::Scalar(field_value_scalar) => {
+            let parsed_field_value_result = field_value_scalar.parse::<DateTime<Utc>>();
+            let parsed_input_value_result = input.field_value.parse::<DateTime<Utc>>();
+        
+            if let (Ok(parsed_field_value), Ok(parsed_input_value)) = (parsed_field_value_result, parsed_input_value_result) {
+                match input.input_operation {
+                    ReadInputOperation::Contains => {
+                        return Err(format!(
+                            "{error_prefix}read input operation contains is not implemented for field type date",
+                            error_prefix = ERROR_PREFIX
+                        ));
+                    },
+                    ReadInputOperation::EndsWith => {
+                        return Err(format!(
+                            "{error_prefix}read input operation ends with is not implemented for field type date",
+                            error_prefix = ERROR_PREFIX
+                        ));
+                    },
+                    ReadInputOperation::Equals => {
+                        return Ok(parsed_field_value == parsed_input_value);
+                    },
+                    ReadInputOperation::GreaterThan => {
+                        return Ok(parsed_field_value > parsed_input_value);
+                    },
+                    ReadInputOperation::GreaterThanOrEqualTo => {
+                        return Ok(parsed_field_value >= parsed_input_value);
+                    },
+                    ReadInputOperation::In => {
+                        return Err(format!(
+                            "{error_prefix}read input operation in is not implemented for field type date",
+                            error_prefix = ERROR_PREFIX
+                        ));
+                    },
+                    ReadInputOperation::LessThan => {
+                        return Ok(parsed_field_value < parsed_input_value);
+                    },
+                    ReadInputOperation::LessThanOrEqualTo => {
+                        return Ok(parsed_field_value <= parsed_input_value);
+                    },
+                    ReadInputOperation::StartsWith => {
+                        return Err(format!(
+                            "{error_prefix}read input operation starts with is not implemented for field type date",
+                            error_prefix = ERROR_PREFIX
+                        ));
+                    }
+                };
+            }
+            else {
                 return Err(format!(
-                    "{error_prefix}read input operation contains is not implemented for field type date",
-                    error_prefix = ERROR_PREFIX
-                ));
-            },
-            ReadInputOperation::EndsWith => {
-                return Err(format!(
-                    "{error_prefix}read input operation ends with is not implemented for field type date",
-                    error_prefix = ERROR_PREFIX
-                ));
-            },
-            ReadInputOperation::Equals => {
-                return Ok(parsed_field_value == parsed_input_value);
-            },
-            ReadInputOperation::GreaterThan => {
-                return Ok(parsed_field_value > parsed_input_value);
-            },
-            ReadInputOperation::GreaterThanOrEqualTo => {
-                return Ok(parsed_field_value >= parsed_input_value);
-            },
-            ReadInputOperation::In => {
-                return Err(format!(
-                    "{error_prefix}read input operation in is not implemented for field type date",
-                    error_prefix = ERROR_PREFIX
-                ));
-            },
-            ReadInputOperation::LessThan => {
-                return Ok(parsed_field_value < parsed_input_value);
-            },
-            ReadInputOperation::LessThanOrEqualTo => {
-                return Ok(parsed_field_value <= parsed_input_value);
-            },
-            ReadInputOperation::StartsWith => {
-                return Err(format!(
-                    "{error_prefix}read input operation starts with is not implemented for field type date",
-                    error_prefix = ERROR_PREFIX
+                    "{error_prefix}read input operation could not parse this input field value: {field_value}",
+                    error_prefix = ERROR_PREFIX,
+                    field_value = input.field_value
                 ));
             }
-        };
-    }
-    else {
-        return Err(format!(
-            "{error_prefix}read input operation could not parse this input field value: {field_value}",
-            error_prefix = ERROR_PREFIX,
-            field_value = input.field_value
-        ));
-    }
-}
-
-// TODO all ints are parsed to f32...is that correct?
-fn field_value_matches_input_for_type_float(
-    field_value: &String,
-    input: &ReadInput
-) -> Result<bool, SudodbError> {
-    let parsed_field_value_result = field_value.parse::<f32>();
-    let parsed_input_value_result = input.field_value.parse::<f32>();
-
-    if let (Ok(parsed_field_value), Ok(parsed_input_value)) = (parsed_field_value_result, parsed_input_value_result) {
-        match input.input_operation {
-            ReadInputOperation::Contains => {
-                return Err(format!(
-                    "{error_prefix}read input operation contains is not implemented for field type float",
-                    error_prefix = ERROR_PREFIX
-                ));
-            },
-            ReadInputOperation::EndsWith => {
-                return Err(format!(
-                    "{error_prefix}read input operation ends with is not implemented for field type float",
-                    error_prefix = ERROR_PREFIX
-                ));
-            },
-            ReadInputOperation::Equals => {
-                return Ok(parsed_field_value == parsed_input_value);
-            },
-            ReadInputOperation::GreaterThan => {
-                return Ok(parsed_field_value > parsed_input_value);
-            },
-            ReadInputOperation::GreaterThanOrEqualTo => {
-                return Ok(parsed_field_value >= parsed_input_value);
-            },
-            ReadInputOperation::In => {
-                return Err(format!(
-                    "{error_prefix}read input operation in is not implemented for field type float",
-                    error_prefix = ERROR_PREFIX
-                ));
-            },
-            ReadInputOperation::LessThan => {
-                return Ok(parsed_field_value < parsed_input_value);
-            },
-            ReadInputOperation::LessThanOrEqualTo => {
-                return Ok(parsed_field_value <= parsed_input_value);
-            },
-            ReadInputOperation::StartsWith => {
-                return Err(format!(
-                    "{error_prefix}read input operation starts with is not implemented for field type float",
-                    error_prefix = ERROR_PREFIX
-                ));
-            }
-        };
-    }
-    else {
-        return Err(format!(
-            "{error_prefix}read input operation could not parse this input field value: {field_value}",
-            error_prefix = ERROR_PREFIX,
-            field_value = input.field_value
-        ));
-    }
-}
-
-// TODO all ints are parsed to i32...is that correct?
-fn field_value_matches_input_for_type_int(
-    field_value: &String,
-    input: &ReadInput
-) -> Result<bool, SudodbError> {
-    let parsed_field_value_result = field_value.parse::<i32>();
-    let parsed_input_value_result = input.field_value.parse::<i32>();
-
-    if let (Ok(parsed_field_value), Ok(parsed_input_value)) = (parsed_field_value_result, parsed_input_value_result) {
-        match input.input_operation {
-            ReadInputOperation::Contains => {
-                return Err(format!(
-                    "{error_prefix}read input operation contains is not implemented for field type int",
-                    error_prefix = ERROR_PREFIX
-                ));
-            },
-            ReadInputOperation::EndsWith => {
-                return Err(format!(
-                    "{error_prefix}read input operation ends with is not implemented for field type int",
-                    error_prefix = ERROR_PREFIX
-                ));
-            },
-            ReadInputOperation::Equals => {
-                return Ok(parsed_field_value == parsed_input_value);
-            },
-            ReadInputOperation::GreaterThan => {
-                return Ok(parsed_field_value > parsed_input_value);
-            },
-            ReadInputOperation::GreaterThanOrEqualTo => {
-                return Ok(parsed_field_value >= parsed_input_value);
-            },
-            ReadInputOperation::In => {
-                return Err(format!(
-                    "{error_prefix}read input operation in is not implemented for field type int",
-                    error_prefix = ERROR_PREFIX
-                ));
-            },
-            ReadInputOperation::LessThan => {
-                return Ok(parsed_field_value < parsed_input_value);
-            },
-            ReadInputOperation::LessThanOrEqualTo => {
-                return Ok(parsed_field_value <= parsed_input_value);
-            },
-            ReadInputOperation::StartsWith => {
-                return Err(format!(
-                    "{error_prefix}read input operation starts with is not implemented for field type int",
-                    error_prefix = ERROR_PREFIX
-                ));
-            }
-        };
-    }
-    else {
-        return Err(format!(
-            "{error_prefix}read input operation could not parse this input field value: {field_value}",
-            error_prefix = ERROR_PREFIX,
-            field_value = input.field_value
-        ));
-    }
-}
-
-fn field_value_matches_input_for_type_string(
-    field_value: &String,
-    input: &ReadInput
-) -> Result<bool, SudodbError> {
-    match input.input_operation {
-        ReadInputOperation::Contains => {
-            return Ok(field_value.contains(&input.field_value));
         },
-        ReadInputOperation::EndsWith => {
-            return Ok(field_value.ends_with(&input.field_value));
-        },
-        ReadInputOperation::Equals => {
-            return Ok(field_value == &input.field_value);
-        },
-        ReadInputOperation::GreaterThan => {
-            return Ok(field_value > &input.field_value);
-        },
-        ReadInputOperation::GreaterThanOrEqualTo => {
-            return Ok(field_value >= &input.field_value);
-        },
-        ReadInputOperation::In => {
-            return Err(format!(
-                "{error_prefix}read input operation in is not implemented for field type string",
-                error_prefix = ERROR_PREFIX
-            ));
-        },
-        ReadInputOperation::LessThan => {
-            return Ok(field_value < &input.field_value);
-        },
-        ReadInputOperation::LessThanOrEqualTo => {
-            return Ok(field_value <= &input.field_value);
-        },
-        ReadInputOperation::StartsWith => {
-            return Ok(field_value.starts_with(&input.field_value));
+        FieldValue::Relation(field_value_relation) => {
+            return Ok(false);
         }
     };
 }
 
+// TODO all ints are parsed to f32...is that correct?
+fn field_value_matches_input_for_type_float(
+    field_value: &FieldValue,
+    input: &ReadInput
+) -> Result<bool, SudodbError> {
+    match field_value {
+        FieldValue::Scalar(field_value_scalar) => {
+            let parsed_field_value_result = field_value_scalar.parse::<f32>();
+            let parsed_input_value_result = input.field_value.parse::<f32>();
+        
+            if let (Ok(parsed_field_value), Ok(parsed_input_value)) = (parsed_field_value_result, parsed_input_value_result) {
+                match input.input_operation {
+                    ReadInputOperation::Contains => {
+                        return Err(format!(
+                            "{error_prefix}read input operation contains is not implemented for field type float",
+                            error_prefix = ERROR_PREFIX
+                        ));
+                    },
+                    ReadInputOperation::EndsWith => {
+                        return Err(format!(
+                            "{error_prefix}read input operation ends with is not implemented for field type float",
+                            error_prefix = ERROR_PREFIX
+                        ));
+                    },
+                    ReadInputOperation::Equals => {
+                        return Ok(parsed_field_value == parsed_input_value);
+                    },
+                    ReadInputOperation::GreaterThan => {
+                        return Ok(parsed_field_value > parsed_input_value);
+                    },
+                    ReadInputOperation::GreaterThanOrEqualTo => {
+                        return Ok(parsed_field_value >= parsed_input_value);
+                    },
+                    ReadInputOperation::In => {
+                        return Err(format!(
+                            "{error_prefix}read input operation in is not implemented for field type float",
+                            error_prefix = ERROR_PREFIX
+                        ));
+                    },
+                    ReadInputOperation::LessThan => {
+                        return Ok(parsed_field_value < parsed_input_value);
+                    },
+                    ReadInputOperation::LessThanOrEqualTo => {
+                        return Ok(parsed_field_value <= parsed_input_value);
+                    },
+                    ReadInputOperation::StartsWith => {
+                        return Err(format!(
+                            "{error_prefix}read input operation starts with is not implemented for field type float",
+                            error_prefix = ERROR_PREFIX
+                        ));
+                    }
+                };
+            }
+            else {
+                return Err(format!(
+                    "{error_prefix}read input operation could not parse this input field value: {field_value}",
+                    error_prefix = ERROR_PREFIX,
+                    field_value = input.field_value
+                ));
+            }
+        },
+        FieldValue::Relation(field_value_relation) => {
+            return Ok(false);
+        }
+    };
+}
+
+// TODO all ints are parsed to i32...is that correct?
+fn field_value_matches_input_for_type_int(
+    field_value: &FieldValue,
+    input: &ReadInput
+) -> Result<bool, SudodbError> {
+    match field_value {
+        FieldValue::Scalar(field_value_scalar) => {
+            let parsed_field_value_result = field_value_scalar.parse::<i32>();
+            let parsed_input_value_result = input.field_value.parse::<i32>();
+        
+            if let (Ok(parsed_field_value), Ok(parsed_input_value)) = (parsed_field_value_result, parsed_input_value_result) {
+                match input.input_operation {
+                    ReadInputOperation::Contains => {
+                        return Err(format!(
+                            "{error_prefix}read input operation contains is not implemented for field type int",
+                            error_prefix = ERROR_PREFIX
+                        ));
+                    },
+                    ReadInputOperation::EndsWith => {
+                        return Err(format!(
+                            "{error_prefix}read input operation ends with is not implemented for field type int",
+                            error_prefix = ERROR_PREFIX
+                        ));
+                    },
+                    ReadInputOperation::Equals => {
+                        return Ok(parsed_field_value == parsed_input_value);
+                    },
+                    ReadInputOperation::GreaterThan => {
+                        return Ok(parsed_field_value > parsed_input_value);
+                    },
+                    ReadInputOperation::GreaterThanOrEqualTo => {
+                        return Ok(parsed_field_value >= parsed_input_value);
+                    },
+                    ReadInputOperation::In => {
+                        return Err(format!(
+                            "{error_prefix}read input operation in is not implemented for field type int",
+                            error_prefix = ERROR_PREFIX
+                        ));
+                    },
+                    ReadInputOperation::LessThan => {
+                        return Ok(parsed_field_value < parsed_input_value);
+                    },
+                    ReadInputOperation::LessThanOrEqualTo => {
+                        return Ok(parsed_field_value <= parsed_input_value);
+                    },
+                    ReadInputOperation::StartsWith => {
+                        return Err(format!(
+                            "{error_prefix}read input operation starts with is not implemented for field type int",
+                            error_prefix = ERROR_PREFIX
+                        ));
+                    }
+                };
+            }
+            else {
+                return Err(format!(
+                    "{error_prefix}read input operation could not parse this input field value: {field_value}",
+                    error_prefix = ERROR_PREFIX,
+                    field_value = input.field_value
+                ));
+            }
+        },
+        FieldValue::Relation(field_value_relation) => {
+            return Ok(false);
+        }
+    };
+}
+
+fn field_value_matches_input_for_type_string(
+    field_value: &FieldValue,
+    input: &ReadInput
+) -> Result<bool, SudodbError> {
+    match field_value {
+        FieldValue::Scalar(field_value_scalar) => {
+            match input.input_operation {
+                ReadInputOperation::Contains => {
+                    return Ok(field_value_scalar.contains(&input.field_value));
+                },
+                ReadInputOperation::EndsWith => {
+                    return Ok(field_value_scalar.ends_with(&input.field_value));
+                },
+                ReadInputOperation::Equals => {
+                    return Ok(field_value_scalar == &input.field_value);
+                },
+                ReadInputOperation::GreaterThan => {
+                    return Ok(field_value_scalar > &input.field_value);
+                },
+                ReadInputOperation::GreaterThanOrEqualTo => {
+                    return Ok(field_value_scalar >= &input.field_value);
+                },
+                ReadInputOperation::In => {
+                    return Err(format!(
+                        "{error_prefix}read input operation in is not implemented for field type string",
+                        error_prefix = ERROR_PREFIX
+                    ));
+                },
+                ReadInputOperation::LessThan => {
+                    return Ok(field_value_scalar < &input.field_value);
+                },
+                ReadInputOperation::LessThanOrEqualTo => {
+                    return Ok(field_value_scalar <= &input.field_value);
+                },
+                ReadInputOperation::StartsWith => {
+                    return Ok(field_value_scalar.starts_with(&input.field_value));
+                }
+            };
+        },
+        FieldValue::Relation(field_value_relation) => {
+            return Ok(false);
+        }
+    };
+}
+
+// TODO figure out how to print this better maybe...
+// TODO for now I am just going to serialize all fields of all records...there is not concept of a selection or selection set
+// TODO I believe most of the inneficiency will just be in the serialization to the string, and not in the fetching itself
+// TODO this is really where the retrieval is done
 // TODO this only works for string values right now, and only scalar values as well
 // TODO We will need to add support for numbers, null, undefined, and relations
-fn convert_field_value_store_to_json_string(field_value_store: &FieldValueStore) -> String {
+fn convert_field_value_store_to_json_string(
+    object_type_store: &ObjectTypeStore,
+    field_value_store: &FieldValueStore
+) -> String {
     let inner_json = field_value_store.iter().enumerate().fold(String::from(""), |result, (i, (key, value))| {
-        return format!(
-            "{result}\"{key}\":\"{value}\"{comma}",
-            result = result,
-            key = key,
-            value = value,
-            comma = if i == field_value_store.iter().len() - 1 { "" } else { "," }
-        );
+        
+        match value {
+            FieldValue::Scalar(field_value_scalar) => {
+                return format!(
+                    "{result}\"{key}\":\"{value}\"{comma}",
+                    result = result,
+                    key = key,
+                    value = field_value_scalar,
+                    comma = if i == field_value_store.iter().len() - 1 { "" } else { "," }
+                );
+            },
+            FieldValue::Relation(field_value_relation) => {
+                // TODO we simply need to go retrieve the relation and serialize it...in fact, I think we can
+                // TODO just do this recursively and call this function again, and it will automatically resolve arbitrarily nested relations
+                // let relation_field_value_store = 
+                
+                if let Some(relation_object_type) = object_type_store.get(&field_value_relation.relation_object_type_name) {
+                    // let relation_field_value_store = relation_object_type.field_values_store.get();
+                
+                    // TODO evil mutations of course
+                    let mut relation_string = String::from("[");
+                    
+                    for (index, relation_primary_key) in field_value_relation.relation_primary_keys.iter().enumerate() {
+                        // let relation_json_string = 
+                        // let relation_field_value_store = relation_object_type.field_values_store.get(relation_primary_key);
+                    
+                        if let Some(relation_field_value_store) = relation_object_type.field_values_store.get(relation_primary_key) {
+                            let relation_json_string = convert_field_value_store_to_json_string(
+                                object_type_store,
+                                relation_field_value_store
+                            );
+
+                            relation_string.push_str(&relation_json_string);
+                            relation_string.push_str(if index == field_value_relation.relation_primary_keys.iter().len() - 1 { "" } else { "," });
+                        }
+                        else {
+                            return result; // TODO this should probably be an error
+                        }
+                    }
+
+                    relation_string.push_str("]");
+
+                    return format!(
+                        "{result}\"{key}\":\"{value}\"{comma}",
+                        result = result,
+                        key = key,
+                        value = relation_string,
+                        comma = if i == field_value_store.iter().len() - 1 { "" } else { "," }
+                    );
+                }
+                else {
+                    return result; // TODO this should probably return an error
+                }
+            }
+        };
     });
 
     let full_json = format!(

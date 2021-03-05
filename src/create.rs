@@ -3,7 +3,10 @@ use crate::{
     FieldValueStore,
     FieldInput,
     SudodbError,
-    FieldTypesStore
+    FieldTypesStore,
+    FieldValue,
+    FieldValueRelation,
+    FieldType
 };
 use std::collections::BTreeMap;
 
@@ -25,7 +28,46 @@ pub fn create(
         )?;
 
         for input in inputs {
-            field_values_map.insert(input.field_name, input.field_value);
+            if let Some(field_type) = object_type.field_types_store.get(&input.field_name) {
+                match field_type {
+                    FieldType::Relation(_) => {
+                        if let FieldValue::Relation(field_value_relation) = input.field_value {
+                            field_values_map.insert(
+                                input.field_name,
+                                FieldValue::Relation(FieldValueRelation {
+                                    relation_object_type_name: String::from(field_value_relation.relation_object_type_name),
+                                    relation_primary_keys: field_value_relation.relation_primary_keys // TODO I think we need to check that these primary keys exist in the relation object
+                                })
+                            );
+                        }
+                        else {
+                            return Err(format!(
+                                "This should be an impossible situation, look into making this less verbose"
+                            ));
+                        }
+                    },
+                    _ => {
+                        if let FieldValue::Scalar(field_value_scalar) = input.field_value {
+                            field_values_map.insert(
+                                input.field_name,
+                                FieldValue::Scalar(field_value_scalar)
+                            );
+                        }
+                        else {
+                            return Err(format!(
+                                "This should be an impossible situation, look into making this less verbose"
+                            ));
+                        }
+                    }
+                }
+            }
+            else {
+                return Err(format!(
+                    "field type for object type {object_type_name} and field name {field_name} not found in database",
+                    object_type_name = object_type_name,
+                    field_name = input.field_name
+                ));
+            }
         }
 
         object_type.field_values_store.insert(String::from(id), field_values_map);
