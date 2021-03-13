@@ -6,7 +6,8 @@ use crate::{
     FieldTypesStore,
     FieldValue,
     FieldValueRelation,
-    FieldType
+    FieldType,
+    convert_field_value_store_to_json_string
 };
 use std::collections::BTreeMap;
 
@@ -70,9 +71,16 @@ pub fn create(
             }
         }
 
+        let temp_clone = field_values_map.clone();
+
         object_type.field_values_store.insert(String::from(id), field_values_map);
 
-        return Ok(vec![]); // TODO this should return a string of the result
+        let json_result_string = convert_field_value_store_to_json_string(
+            object_type_store,
+            &temp_clone
+        );
+
+        return Ok(vec![json_result_string]);
     }
     else {
         return Err(format!(

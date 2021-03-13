@@ -7,7 +7,8 @@ use crate::{
     FieldTypesStore,
     FieldType,
     SudodbError,
-    FieldValue
+    FieldValue,
+    convert_field_value_store_to_json_string
 };
 use chrono::prelude::{
     DateTime,
@@ -463,80 +464,4 @@ fn field_value_matches_input_for_type_string(
             return Ok(false);
         }
     };
-}
-
-// TODO figure out how to print this better maybe...
-// TODO for now I am just going to serialize all fields of all records...there is not concept of a selection or selection set
-// TODO I believe most of the inneficiency will just be in the serialization to the string, and not in the fetching itself
-// TODO this is really where the retrieval is done
-// TODO this only works for string values right now, and only scalar values as well
-// TODO We will need to add support for numbers, null, undefined, and relations
-fn convert_field_value_store_to_json_string(
-    object_type_store: &ObjectTypeStore,
-    field_value_store: &FieldValueStore
-) -> String {
-    let inner_json = field_value_store.iter().enumerate().fold(String::from(""), |result, (i, (key, value))| {
-        
-        match value {
-            FieldValue::Scalar(field_value_scalar) => {
-                return format!(
-                    "{result}\"{key}\":\"{value}\"{comma}",
-                    result = result,
-                    key = key,
-                    value = field_value_scalar,
-                    comma = if i == field_value_store.iter().len() - 1 { "" } else { "," }
-                );
-            },
-            FieldValue::Relation(field_value_relation) => {
-                // TODO we simply need to go retrieve the relation and serialize it...in fact, I think we can
-                // TODO just do this recursively and call this function again, and it will automatically resolve arbitrarily nested relations
-                // let relation_field_value_store = 
-                
-                if let Some(relation_object_type) = object_type_store.get(&field_value_relation.relation_object_type_name) {
-                    // let relation_field_value_store = relation_object_type.field_values_store.get();
-                
-                    // TODO evil mutations of course
-                    let mut relation_string = String::from("[");
-                    
-                    for (index, relation_primary_key) in field_value_relation.relation_primary_keys.iter().enumerate() {
-                        // let relation_json_string = 
-                        // let relation_field_value_store = relation_object_type.field_values_store.get(relation_primary_key);
-                    
-                        if let Some(relation_field_value_store) = relation_object_type.field_values_store.get(relation_primary_key) {
-                            let relation_json_string = convert_field_value_store_to_json_string(
-                                object_type_store,
-                                relation_field_value_store
-                            );
-
-                            relation_string.push_str(&relation_json_string);
-                            relation_string.push_str(if index == field_value_relation.relation_primary_keys.iter().len() - 1 { "" } else { "," });
-                        }
-                        else {
-                            return result; // TODO this should probably be an error
-                        }
-                    }
-
-                    relation_string.push_str("]");
-
-                    return format!(
-                        "{result}\"{key}\":\"{value}\"{comma}",
-                        result = result,
-                        key = key,
-                        value = relation_string,
-                        comma = if i == field_value_store.iter().len() - 1 { "" } else { "," }
-                    );
-                }
-                else {
-                    return result; // TODO this should probably return an error
-                }
-            }
-        };
-    });
-
-    let full_json = format!(
-        "{{{inner_json}}}",
-        inner_json = inner_json
-    );
-
-    return full_json;
 }
