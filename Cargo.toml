@@ -4,6 +4,7 @@ version = "0.0.0"
 authors = ["Jordan Last <jordan.michael.last@gmail.com>"]
 edition = "2018"
 license = "MIT"
+description = "Relational database for the Internet Computer"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
